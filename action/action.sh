@@ -33,7 +33,7 @@ echo "SSH key found for @${ACTOR}"
 
 # Start SSH server
 echo "Starting SSH server..."
-apt-get install -y openssh-server > /dev/null 2>&1
+sudo apt-get install -y openssh-server > /dev/null 2>&1
 
 mkdir -p /home/runner/.ssh
 echo "$SSH_KEY" > /home/runner/.ssh/authorized_keys
