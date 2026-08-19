@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"log"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -73,14 +74,12 @@ func runnerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 30 minute expiry
 	go func() {
 		time.Sleep(30 * time.Minute)
 		log.Printf("Session %s expired", token)
 		cleanupSession(token)
 	}()
 
-	// Wait until developer connects before handing off to bridge
 	<-session.bridged
 	log.Printf("Bridge formed for session %s", token)
 }
@@ -114,17 +113,14 @@ func developerHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("Developer connected to session %s", token)
 
-	// Signal runner that bridge is ready
 	close(session.bridged)
 
-	// Start bridging
 	bridge(session)
 }
 
 func bridge(session *Session) {
 	done := make(chan struct{}, 2)
 
-	// Runner -> Developer
 	go func() {
 		defer func() { done <- struct{}{} }()
 		for {
@@ -143,7 +139,6 @@ func bridge(session *Session) {
 		}
 	}()
 
-	// Developer -> Runner
 	go func() {
 		defer func() { done <- struct{}{} }()
 		for {
@@ -197,12 +192,16 @@ func main() {
 	http.HandleFunc("/developer", developerHandler)
 	http.HandleFunc("/status", statusHandler)
 
-	log.Println("cidebug relay server starting on :8080")
-	log.Println("Runner endpoint:    ws://localhost:8080/runner")
-	log.Println("Developer endpoint: ws://localhost:8080/developer?token=TOKEN")
-	log.Println("Status:             http://localhost:8080/status")
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	log.Printf("cidebug relay server starting on :%s", port)
+	log.Printf("Runner endpoint:    ws://localhost:%s/runner", port)
+	log.Printf("Developer endpoint: ws://localhost:%s/developer?token=TOKEN", port)
+	log.Printf("Status:             http://localhost:%s/status", port)
 
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatal("Server error:", err)
 	}
 }
