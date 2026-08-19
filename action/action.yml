@@ -1,0 +1,23 @@
+name: 'cidebug - Interactive CI Debugger'
+description: 'Debug failed CI pipelines interactively by dropping into a live shell at the point of failure'
+author: 'SAMREEN111-hash'
+
+inputs:
+  relay-url:
+    description: 'cidebug relay server URL'
+    required: false
+    default: 'wss://cidebug-production.up.railway.app'
+
+outputs:
+  session-token:
+    description: 'The session token for connecting to the debug session'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Start cidebug session
+      if: failure()
+      shell: bash
+      run: ${{ github.action_path }}/action.sh
+      env:
+        RELAY_URL: ${{ inputs.relay-url }}
