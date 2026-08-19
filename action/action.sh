@@ -40,8 +40,8 @@ echo "$SSH_KEY" > /home/runner/.ssh/authorized_keys
 chmod 700 /home/runner/.ssh
 chmod 600 /home/runner/.ssh/authorized_keys
 
-mkdir -p /run/sshd
-/usr/sbin/sshd -p 2222 -o "PermitRootLogin no" \
+sudo mkdir -p /run/sshd
+sudo /usr/sbin/sshd -p 2222 -o "PermitRootLogin no" \
   -o "PasswordAuthentication no" \
   -o "AuthorizedKeysFile /home/runner/.ssh/authorized_keys"
 
