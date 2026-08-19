@@ -16,8 +16,9 @@ runs:
   using: 'composite'
   steps:
     - name: Start cidebug session
-      if: failure()
       shell: bash
-      run: ${{ github.action_path }}/action.sh
+      run: |
+        chmod +x ${{ github.action_path }}/action.sh
+        ${{ github.action_path }}/action.sh
       env:
         RELAY_URL: ${{ inputs.relay-url }}
