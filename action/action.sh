@@ -49,7 +49,7 @@ echo "SSH server started on port 2222"
 
 # Connect to relay and get token
 echo "Connecting to relay..."
-TOKEN=$(/tmp/websocat --no-close -n1 "$RELAY_URL" 2>/dev/null | \
+TOKEN=$(/tmp/websocat --no-close -n1 -t "$RELAY_URL/runner" 2>&1 | \
   grep "^TOKEN:" | head -1 | sed 's/^TOKEN://')
 
 if [ -z "$TOKEN" ]; then
