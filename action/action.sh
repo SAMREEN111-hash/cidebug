@@ -53,7 +53,7 @@ echo "SSH server started on port 2222"
 
 # Connect to relay
 echo "Connecting to relay at $RELAY_WS/runner ..."
-/tmp/websocat -v --no-close -n1 "$RELAY_WS/runner" > /tmp/ws_out.txt 2>/tmp/ws_err.txt &
+/tmp/websocat -v -n1 "$RELAY_WS/runner" > /tmp/ws_out.txt 2>/tmp/ws_err.txt &
 WS_PID=$!
 sleep 5
 
