@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-RELAY_WS="wss://cidebug-production.up.railway.app"
 RELAY_HTTP="https://cidebug-production.up.railway.app"
+RELAY_WS="wss://cidebug-production.up.railway.app"
 ACTOR="${GITHUB_ACTOR}"
 
 echo "======================================"
@@ -13,9 +13,8 @@ echo "A step in your pipeline failed."
 echo ""
 
 # Test relay is reachable
-echo "Checking relay status..."
-STATUS=$(curl -s "$RELAY_HTTP/status")
-echo "Relay: $STATUS"
+echo "Checking relay..."
+curl -sf "$RELAY_HTTP/status" || { echo "Relay unreachable"; exit 1; }
 
 # Install websocat
 echo "Installing websocat..."
@@ -23,68 +22,67 @@ curl -sL https://github.com/vi/websocat/releases/download/v1.13.0/websocat.x86_6
   -o /tmp/websocat
 chmod +x /tmp/websocat
 
-# Fetch SSH key
-echo "Fetching SSH key for @${ACTOR}..."
-SSH_KEY=$(curl -s "https://api.github.com/users/${ACTOR}/keys" | \
-  python3 -c "import sys,json; keys=json.load(sys.stdin); print(keys[0]['key']) if keys else print('')")
+# Install tmate for terminal sharing
+echo "Installing tmate..."
+curl -sL https://github.com/tmate-io/tmate/releases/download/2.4.0/tmate-2.4.0-static-linux-amd64.tar.xz \
+  -o /tmp/tmate.tar.xz
+cd /tmp && tar xf tmate.tar.xz
+chmod +x /tmp/tmate-2.4.0-static-linux-amd64/tmate
+cp /tmp/tmate-2.4.0-static-linux-amd64/tmate /usr/local/bin/tmate
+cd -
 
-if [ -z "$SSH_KEY" ]; then
-  echo "WARNING: No SSH key found for @${ACTOR}."
-  echo "Please add an SSH key at github.com/settings/keys"
-  exit 0
-fi
-echo "SSH key found for @${ACTOR}"
-
-# Start SSH server
-echo "Starting SSH server..."
-sudo apt-get install -y openssh-server > /dev/null 2>&1
-
-mkdir -p /home/runner/.ssh
-echo "$SSH_KEY" > /home/runner/.ssh/authorized_keys
-chmod 700 /home/runner/.ssh
-chmod 600 /home/runner/.ssh/authorized_keys
-
-sudo mkdir -p /run/sshd
-sudo /usr/sbin/sshd -p 2222 \
-  -o "PermitRootLogin no" \
-  -o "PasswordAuthentication no" \
-  -o "AuthorizedKeysFile /home/runner/.ssh/authorized_keys"
-echo "SSH server started on port 2222"
-
-# Connect to relay
-echo "Connecting to relay at $RELAY_WS/runner ..."
+# Get session token from relay
+echo "Connecting to relay..."
 /tmp/websocat -v -n1 "$RELAY_WS/runner" > /tmp/ws_out.txt 2>/tmp/ws_err.txt &
 WS_PID=$!
 sleep 5
-
-echo "WebSocket stdout:"
-cat /tmp/ws_out.txt
-
-echo "WebSocket stderr:"
-cat /tmp/ws_err.txt
-
-TOKEN=$(grep "^TOKEN:" /tmp/ws_out.txt | head -1 | sed 's/^TOKEN://')
 kill $WS_PID 2>/dev/null || true
 
+TOKEN=$(grep "^TOKEN:" /tmp/ws_out.txt | head -1 | sed 's/^TOKEN://')
+
 if [ -z "$TOKEN" ]; then
-  echo "Failed to get token from relay"
-  exit 1
+  echo "WebSocket output:"
+  cat /tmp/ws_out.txt
+  echo "WebSocket errors:"
+  cat /tmp/ws_err.txt
+  echo "Failed to get token - falling back to tmate"
+  TOKEN="tmate-fallback"
 fi
+
+echo "Session token: $TOKEN"
+
+# Start tmate session
+echo ""
+echo "Starting tmate terminal session..."
+tmate -S /tmp/tmate.sock new-session -d
+tmate -S /tmp/tmate.sock wait tmate-ready
+
+# Get connection strings
+TMATE_SSH=$(tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}')
+TMATE_WEB=$(tmate -S /tmp/tmate.sock display -p '#{tmate_web}')
 
 echo ""
 echo "======================================"
 echo "  DEBUG SESSION READY"
 echo "======================================"
 echo ""
-echo "Connect with:"
-echo "  ssh -p 2222 runner@cidebug-production.up.railway.app"
+echo "Connect via SSH:"
+echo "  $TMATE_SSH"
 echo ""
-echo "Session token: $TOKEN"
+echo "Connect via browser:"
+echo "  $TMATE_WEB"
+echo ""
+echo "cidebug token: $TOKEN"
+echo ""
 echo "Session expires in 30 minutes."
+echo "Type 'exit' in the terminal when done debugging."
 echo ""
 
+# Write to GITHUB_OUTPUT
 echo "cidebug-token=$TOKEN" >> "$GITHUB_OUTPUT"
+echo "tmate-ssh=$TMATE_SSH" >> "$GITHUB_OUTPUT"
+echo "tmate-web=$TMATE_WEB" >> "$GITHUB_OUTPUT"
 
-echo "Waiting for debug session to end..."
-sleep 1800 &
-wait
+# Keep session alive for 30 minutes
+echo "Waiting for debug session..."
+sleep 1800
